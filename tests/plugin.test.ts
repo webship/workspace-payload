@@ -56,6 +56,13 @@ test('the site script is a module the app\'s Node.js can run, with every verb th
   assert.match(src, /No cloud account, no licence key, no paid service/, 'the site script says it uses no service of the vendor');
   assert.match(src, /telemetry: false/, 'telemetry off in the app');
   assert.match(src, /name: 'roles'/, 'the accounts get a roles field');
+  // `payload run` ends every script with process.exit(0): the answer of `accounts installed` (asked by
+  // the testing setup) is its own process.exit, never process.exitCode.
+  const from = src.indexOf("case 'installed':");
+  const next = src.indexOf('    case \'', from + 1);
+  const installed = src.slice(from, next > from ? next : undefined);
+  assert.match(installed, /process\.exit\(found\.docs\.length \? 0 : 1\)/, 'accounts installed ends with its own answer');
+  assert.doesNotMatch(installed, /process\.exitCode/, 'accounts installed does not leave its answer to process.exitCode');
 });
 
 test('the functions carry the names the core\'s tools look for, and write only the container\'s own database settings', () => {

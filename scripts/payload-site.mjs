@@ -296,9 +296,12 @@ async function accounts(payload, action) {
       return;
     }
     case 'installed': {
+      // Says so on its output too: `payload run` ends with 0 whatever a script sets, so the exit status is
+      // the one of process.exit (after the database is let go).
       const found = await payload.find({ collection: ACCOUNTS(), where: { roles: { contains: 'administrator' } }, limit: 1, depth: 0, overrideAccess: true });
-      process.exitCode = found.docs.length ? 0 : 1;
-      return;
+      console.log(`installed: ${found.docs.length ? 'yes' : 'no'}`);
+      await payload.destroy().catch(() => {});
+      process.exit(found.docs.length ? 0 : 1);
     }
     default:
       fail(`accounts takes add, cancel, list or installed, not ${action || 'nothing'}.`);
