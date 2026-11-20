@@ -213,6 +213,19 @@ test('the CLI tool runs a Payload CLI command in the folder of the app, in produ
   assert.match(fs.readFileSync(log, 'utf8'), /^ddev exec -d \/var\/www\/html\/app NODE_ENV=production \.\/node_modules\/\.bin\/payload migrate:status$/m);
 });
 
+test('--migrate asks no question: a migration only of a change, and it says when nothing changed', () => {
+  const p = project('payload');
+  const log = path.join(p.root, 'ddev.log');
+  const fake = `ddev() { case "$*" in describe*) echo '{"raw":{"status":"running"}}' ;; *) echo "ddev $*" >> "${log}" ;; esac ; }`;
+  const r = bash(`${fake}\nPROJECT_NAME=site1 ; RUN=_none_ ; MIGRATE=yes ; trim_project_name() { :; } ; payload_cli_tool`, { WORKSPACE_ROOT: p.root, doc_name: 'dev' });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  const ran = fs.readFileSync(log, 'utf8');
+  assert.match(ran, /payload migrate:create --skip-empty$/m, 'no question about a blank migration');
+  assert.match(ran, /payload migrate$/m);
+  assert.doesNotMatch(ran, /generate:types/, 'no new types when nothing changed');
+  assert.match(r.stdout, /no migration was made/);
+});
+
 test('the first feature names no platform in a step, and no password', () => {
   const feature = fs.readFileSync(path.join(PKG, 'testing', 'site.feature'), 'utf8');
   const steps = feature.split('\n').filter((l) => /^\s*(Given|When|Then|And|But) /.test(l));
