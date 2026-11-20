@@ -224,8 +224,9 @@ Feature: The editor writes a post
     And the status of the document should be "Draft"
 ```
 
-`tests/features/site.feature` passes on an app built with `--install --add-users`. The features of
-the step pack, and the scenario above, pass on an app built with `--install --add-users --sample-content`.
+`tests/features/site.feature` passes on an app built with `--install --add-users`, from either
+template. The features of the step pack, and the scenario above, pass on an app built with
+`--install --add-users --sample-content` (the website template).
 
 ## The AI items
 

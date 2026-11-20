@@ -5,8 +5,10 @@ Feature: The admin answers and its accounts work
 
   # Placed by the workspace's testing setup as a starting point: it is yours to change.
   # The accounts are the default ones (cmd-tools-payload-cli.sh --add-users); a scenario logs in by a
-  # handle of the users registry in cucumber.js, so no password is written here. It passes on an app
-  # built with --install --add-users, with or without --sample-content.
+  # handle of the users registry in cucumber.js, so no password is written here. The rows of the
+  # accounts are found by their default addresses: the blank template's accounts have no name. It
+  # passes on an app built with --install --add-users, from either template, with or without
+  # --sample-content.
 
   @critical
   Scenario: The admin login page is served, and the first-user screen is gone
@@ -35,8 +37,8 @@ Feature: The admin answers and its accounts work
   Scenario: The administrator manages the accounts and their roles
     Given I am a logged in user with the "administrator" user
     And I am on the "Users" list
-    Then the "Editor Webship" row should show "Editor" in the "Roles" column
-    And the "Administrator Webship" row should show "Administrator" in the "Roles" column
+    Then the "editor@example.com" row should show "Editor" in the "Roles" column
+    And the "administrator@example.com" row should show "Administrator" in the "Roles" column
 
   Scenario: The editor manages the content and its own account only
     Given I am a logged in user with the "editor" user
