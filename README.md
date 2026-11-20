@@ -149,7 +149,8 @@ bash cmd-tools-payload-cli.sh mysite --add-users                      # the defa
 bash cmd-tools-payload-cli.sh mysite --cancel-users                   # delete them
 ```
 
-A change of a collection or a field in `app/src` is `--migrate`, then `--build`.
+A change of a collection or a field in `app/src` is `--migrate`, then `--build`. With nothing changed,
+`--migrate` says so and makes no migration.
 
 On a start or a restart the container tool may print "Unable to start web_extra_daemons" with
 "supervisor.sock no such file": it asked before the web container was ready, and the container starts

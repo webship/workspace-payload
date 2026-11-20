@@ -336,11 +336,20 @@ function payload_cli_tool() {
 
   if [ "${MIGRATE}" == 'yes' ] ; then
     # A migration of what changed in the app's configuration, applied, and the types of the app again.
+    # --skip-empty: with nothing changed, migrate:create would ask whether to make a blank migration, and
+    # a question no one can answer here stops it ("unsettled top-level await", status 13).
+    local made_before made_after ;
+    made_before="$(ls app/src/migrations 2>/dev/null | grep -c '\.json$')" ;
     echo "Making a migration of what changed in the configuration, and running it." ;
-    payload_cli "migrate:create" || exit 1 ;
+    payload_cli "migrate:create --skip-empty" || exit 1 ;
+    made_after="$(ls app/src/migrations 2>/dev/null | grep -c '\.json$')" ;
     payload_cli "migrate" || exit 1 ;
-    payload_cli "generate:types" > /dev/null ;
-    echo "Build the app again to serve the change: bash cmd-tools-payload-cli.sh ${PROJECT_NAME} --build" ;
+    if [ "${made_after}" == "${made_before}" ] ; then
+      echo "No collection or field changed since the last migration: no migration was made." ;
+    else
+      payload_cli "generate:types" > /dev/null ;
+      echo "Build the app again to serve the change: bash cmd-tools-payload-cli.sh ${PROJECT_NAME} --build" ;
+    fi
   elif [ "${BUILD}" == 'yes' ] ; then
     payload_production_build || exit 1 ;
     echo "Payload $(payload_version): the new build is served at https://${PROJECT_NAME}.ddev.site/admin" ;
