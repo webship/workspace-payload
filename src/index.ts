@@ -3,7 +3,7 @@
  *
  * What the package carries is placed by the installer from the manifest: the builder and the Payload
  * CLI tool in the sites folders, their functions and argparse under core/scripts/plugins/payload/ (with
- * payload-site.mjs, which the builder runs with the app's Node.js through the Payload CLI), and its AI
+ * payload-site.mts, which the builder runs with the app's Node.js through the Payload CLI), and its AI
  * items (ai/ in this package) in the folder of their kind: the agents in AI Agents, the skill in AI
  * Skills, the command in AI Commands, the prompts in AI Prompts. The dashboard needs nothing drawn for
  * it: the builder is in the Build list because it is a cmd-*-project.sh, the row menus are the core's,

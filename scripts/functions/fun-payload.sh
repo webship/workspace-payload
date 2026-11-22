@@ -139,15 +139,16 @@ function payload_production_build() {
   payload_restart ;
 }
 
-# Put payload-site.mjs into the folder of the app as webship-site.mjs (the Payload CLI runs scripts of the
+# Put payload-site.mts into the folder of the app as webship-site.mts (the Payload CLI runs scripts of the
 # app's own folder), through the container, so it works wherever the workspace runs.
 function payload_place_site_script() {
-  local script="${WORKSPACE_SCRIPTS}/plugins/payload/payload-site.mjs" ;
+  local script="${WORKSPACE_SCRIPTS}/plugins/payload/payload-site.mts" ;
   if [ ! -f "${script}" ] ; then
-    echo "payload-site.mjs is not in ${WORKSPACE_SCRIPTS}/plugins/payload: install the plugin (plugins.sh --install payload)." ;
+    echo "payload-site.mts is not in ${WORKSPACE_SCRIPTS}/plugins/payload: install the plugin (plugins.sh --install payload)." ;
     return 1 ;
   fi
-  ddev exec "cat > ${PAYLOAD_APP}/webship-site.mjs" < "${script}" ;
+  # An app of an older release of the plugin has the JavaScript copy: it goes.
+  ddev exec "rm -f ${PAYLOAD_APP}/webship-site.mjs && cat > ${PAYLOAD_APP}/webship-site.mts" < "${script}" ;
 }
 
 # The accounts the site script verbs carry, as base64 of a JSON object: the owner (the workspace account)
@@ -177,9 +178,9 @@ function payload_site() {
   if [ "${verb}" == 'accounts' ] ; then
     local payload ;
     payload="$(payload_accounts_payload)" || return 1 ;
-    printf '%s' "${payload}" | ddev exec -d "${PAYLOAD_APP}" "NODE_ENV=production ./node_modules/.bin/payload run webship-site.mjs accounts $*" ;
+    printf '%s' "${payload}" | ddev exec -d "${PAYLOAD_APP}" "NODE_ENV=production ./node_modules/.bin/payload run webship-site.mts accounts $*" ;
   else
-    ddev exec -d "${PAYLOAD_APP}" "NODE_ENV=production ./node_modules/.bin/payload run webship-site.mjs ${verb} $*" < /dev/null ;
+    ddev exec -d "${PAYLOAD_APP}" "NODE_ENV=production ./node_modules/.bin/payload run webship-site.mts ${verb} $*" < /dev/null ;
   fi
 }
 
@@ -242,7 +243,7 @@ function payload_build() {
   # The address of the app, a secret of its own for the preview and the scheduled jobs, the roles of the
   # accounts; then the schema of the database from a migration.
   payload_place_site_script || exit 1 ;
-  ddev exec -d "${PAYLOAD_APP}" "node webship-site.mjs config ${base_url}" < /dev/null || exit 1 ;
+  ddev exec -d "${PAYLOAD_APP}" "node webship-site.mts config ${base_url}" < /dev/null || exit 1 ;
   ddev exec -d "${PAYLOAD_APP}" "rm -rf src/migrations && NODE_ENV=production ./node_modules/.bin/payload migrate:create initial && NODE_ENV=production ./node_modules/.bin/payload migrate" < /dev/null \
     || { echo "The migration of the database failed." ; exit 1 ; } ;
 
