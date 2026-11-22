@@ -40,7 +40,7 @@ function project(kind: 'payload' | 'drupal') {
   const scripts = path.join(root, 'core', 'scripts');
   fs.mkdirSync(path.join(scripts, 'plugins', 'payload'), { recursive: true });
   fs.copyFileSync(path.join(PKG, 'testing', 'site.feature'), path.join(scripts, 'plugins', 'payload', 'site.feature'));
-  fs.copyFileSync(path.join(PKG, 'scripts', 'payload-site.mjs'), path.join(scripts, 'plugins', 'payload', 'payload-site.mjs'));
+  fs.copyFileSync(path.join(PKG, 'scripts', 'payload-site.mts'), path.join(scripts, 'plugins', 'payload', 'payload-site.mts'));
   return { root, dir, scripts };
 }
 
@@ -59,7 +59,7 @@ function bash(script: string, env: Record<string, string> = {}) {
  */
 function payloadOf(recorded: string, verb: string) {
   const lines = recorded.split('\n');
-  const call = lines.findIndex((l) => l.startsWith('ddev exec -d /var/www/html/app') && l.includes(`payload run webship-site.mjs accounts ${verb}`));
+  const call = lines.findIndex((l) => l.startsWith('ddev exec -d /var/www/html/app') && l.includes(`payload run webship-site.mts accounts ${verb}`));
   assert.ok(call >= 0, `a call of the site script's accounts ${verb}: ${recorded}`);
   assert.doesNotMatch(lines[call], /PAYLOAD_SITE_ACCOUNTS|dD\.123123ddd|Owner-pass/, 'no account on the command line');
   const m = (lines[call + 1] || '').match(/^  stdin1: ([A-Za-z0-9+/=]+)$/);
@@ -86,10 +86,10 @@ test('the accounts are written by the site script through the app\'s Local API, 
   const r = bash('set_payload_users ; add_payload_users', env);
   assert.strictEqual(r.status, 0, r.stderr + r.stdout);
   const written = fs.readFileSync(log, 'utf8');
-  assert.match(written, /^ddev exec cat > \/var\/www\/html\/app\/webship-site\.mjs$/m, 'the site script is put into the folder of the app');
+  assert.match(written, /^ddev exec rm -f \/var\/www\/html\/app\/webship-site\.mjs && cat > \/var\/www\/html\/app\/webship-site\.mts$/m, 'the site script is put into the folder of the app');
   assert.match(written, /stdin1: \/\/ The test site of the step pack/, 'through the container, on its input');
   const call = written.split('\n').find((l) => l.includes('accounts add')) as string;
-  assert.match(call, /^ddev exec -d \/var\/www\/html\/app NODE_ENV=production \.\/node_modules\/\.bin\/payload run webship-site\.mjs accounts add$/);
+  assert.match(call, /^ddev exec -d \/var\/www\/html\/app NODE_ENV=production \.\/node_modules\/\.bin\/payload run webship-site\.mts accounts add$/);
   const payload = payloadOf(written, 'add');
   assert.deepStrictEqual(payload.accounts.map((a: any) => [a.handle, a.email, a.roles]), [
     ['administrator', 'administrator@example.com', ['administrator']],

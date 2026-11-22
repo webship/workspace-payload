@@ -67,7 +67,7 @@ Everything the builder runs for an app runs in the app's own container, through 
 | `commands/cmd-tools-payload-cli.sh` | The Payload CLI for one app: what the app is, a command, a migration, a new build, a restart, the default accounts |
 | `scripts/functions/fun-payload.sh` | The bash functions behind both, sourced by bootstrap once installed; the names the core's tools look for (`set_payload_users`, `add_payload_users`, `cancel_payload_users`, `testing_configure_payload`) |
 | `scripts/args/arg-payload.sh`, `arg-payload-cli.sh` | Their argparse; the Build form draws the builder's flags from the first |
-| `scripts/payload-site.mjs` | Run in the project's container with the app's Node.js (through the Payload CLI's `payload run` for the verbs that need the database): the address of the app, the roles of the accounts, the accounts, the website template's own seed and the sample posts (the same script the step pack's test site is built with) |
+| `scripts/payload-site.mts` | Run in the project's container with the app's Node.js (through the Payload CLI's `payload run` for the verbs that need the database): the address of the app, the roles of the accounts, the accounts, the website template's own seed and the sample posts (the same script the step pack's test site is built with) |
 | `testing/site.feature` | The first feature a Payload app gets when testing is set up |
 | `ai/agents/payload-site-builder.md` | The agent that builds and maintains Payload apps with these commands |
 | `ai/agents/payload-tester.md` | The agent that writes and runs scenarios with the Payload step pack |
@@ -92,7 +92,7 @@ plugin keeps the shape of the reference and changes only this:
 | Database | The container tool's default, settings written by the tool | PostgreSQL 17 from the container tool; the installer writes the container's own `db` / `db` / `db` into `app/.env` |
 | Getting the code | `wp core download` | `npx create-payload-app@<release> --template website --branch v<release> --db postgres`: the official installer and the template of its release, npm, no coding-agent skill, no git repository |
 | Install | `wp core install` | The schema from a migration (`payload migrate:create`, `payload migrate`); with `--install` the workspace account is the app's first account, an administrator; `next build` for production |
-| Accounts | WP-CLI | `scripts/payload-site.mjs`, through the app's Local API (`payload run`) |
+| Accounts | WP-CLI | `scripts/payload-site.mts`, through the app's Local API (`payload run`) |
 | Users menu of the row | Reads the project type | None (the type is `generic`; the Tests menu's test users items hand it the Webship list): the Payload CLI tool's `--add-users`, or `cmd-tools-add-users.sh <name> payload` |
 
 No cloud account, no paid service and no licence key: the installer runs with no coding-agent skill
@@ -269,10 +269,16 @@ plugin's own.
 
 ```bash
 npm install     # builds dist/ (TypeScript)
-npm run lint
-npm test        # the manifest, the commands, the AI items, the functions against a scaffolded project
+npm run lint    # tsc over src/ and tests/, and over the site script (tsconfig.scripts.json)
+npm test        # the manifest, the commands, the AI items, the functions against a scaffolded project, the site script's config verb on an app folder
 ```
 
-CI runs the same on Node.js 20 and 24, parses every shell script, and runs the plugin's
+The plugin is TypeScript throughout. `scripts/payload-site.mts` is not compiled: the builder puts it into the
+folder of the app as `webship-site.mts`, Node.js runs its `config` verb as it is (type stripping, from
+Node.js 22.18, the lowest the Workspace accepts), and `payload run` loads it for the other verbs with the
+app's own tsx. It is an ES module with erasable syntax only, and an `.mts` so the app's own type check
+(`**/*.ts`) leaves it alone. `types/payload-site-modules.d.ts` says what it uses of the app's `payload`.
+
+CI runs the same on Node.js 22 and 26, parses every shell script, and runs the plugin's
 `features/payload.feature` against a dashboard with this plugin installed
 (`webship/workspace/.github/workflows/plugin-browser-suite.yml`).

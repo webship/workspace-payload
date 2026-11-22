@@ -1,18 +1,18 @@
 // The test site of the step pack: what the build adds to an app the official
 // installer (create-payload-app, the website template) made. The build copies
-// this file into the folder of the app as webship-site.mjs and runs it with the
+// this file into the folder of the app as webship-site.mts and runs it with the
 // Node.js of the web container, in that folder (.github/scripts/build-ddev-site.sh,
 // and the Webship Workspace's Payload plugin):
 //
-//   node webship-site.mjs config <url>                 the address of the site, the secrets the installer left
+//   node webship-site.mts config <url>                 the address of the site, the secrets the installer left
 //                                                      as placeholders, and the roles of the accounts (below)
-//   npx payload run webship-site.mjs accounts add      the accounts (an account already there gets its name,
+//   npx payload run webship-site.mts accounts add      the accounts (an account already there gets its name,
 //                                                      password and roles back, and is unlocked)
-//   npx payload run webship-site.mjs accounts cancel | list | installed
-//   npx payload run webship-site.mjs seed              the template's own seed: what its dashboard's
+//   npx payload run webship-site.mts accounts cancel | list | installed
+//   npx payload run webship-site.mts seed              the template's own seed: what its dashboard's
 //                                                      "Seed your database" makes (pages, posts, media,
 //                                                      categories, the contact form, the header and footer)
-//   npx payload run webship-site.mjs sample            the sample content of the suite: twelve more posts
+//   npx payload run webship-site.mts sample            the sample content of the suite: twelve more posts
 //
 // The verbs after `config` work through the app's own Local API, so they need
 // no running server: `payload run` loads the app's configuration and its
@@ -30,23 +30,92 @@
 // What this adds to the template is marked "Webship test site" in each file it
 // writes. No cloud account, no licence key, no paid service.
 
+// TypeScript, with erasable syntax only, so nothing is built: Node.js runs `config` as it is (type
+// stripping, from Node.js 22.18), and `payload run` loads the file with the app's own tsx. It is an
+// .mts so the app's own type check (its tsconfig takes **/*.ts) leaves it alone. `npm run lint` of the
+// plugin type-checks it (tsconfig.scripts.json, with types/payload-site-modules.d.ts for what it uses
+// of the app's packages).
+
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const APP = process.cwd();
+/** An account as the functions of the plugin hand it over. */
+interface Account {
+  handle?: string;
+  name?: string;
+  email: string;
+  password?: string;
+  roles?: string[];
+}
+
+/** What arrives on the standard input, decoded. */
+interface AccountsInput {
+  owner: Account | null;
+  accounts: Account[];
+}
+
+/** A document of the app, as the Local API answers it (depth 0). */
+interface Doc {
+  id: string | number;
+  [field: string]: unknown;
+}
+
+interface AccountDoc extends Doc {
+  email: string;
+  name?: string;
+  roles?: string[];
+}
+
+interface CategoryDoc extends Doc {
+  title?: string;
+}
+
+interface FindResult<D extends Doc> {
+  docs: D[];
+}
+
+/** The options of a Local API call, as far as this script sets them. */
+interface CallOptions {
+  collection?: string;
+  context?: Record<string, unknown>;
+  [option: string]: unknown;
+}
+
+type Write = (options: CallOptions) => Promise<unknown>;
+
+/** What the script uses of the app's Local API (the object getPayload answers). */
+interface Payload {
+  find<D extends Doc = Doc>(options: CallOptions): Promise<FindResult<D>>;
+  create: Write;
+  update: Write;
+  updateGlobal: Write;
+  delete: Write;
+  unlock: Write;
+  destroy(): Promise<void>;
+}
+
+/** The template's own seed (src/endpoints/seed/index.ts of the app). */
+interface TemplateSeed {
+  seed(args: { payload: Payload; req: unknown }): Promise<void>;
+}
+
+/** A post of the sample content: its title, its category and its summary. */
+type SamplePost = readonly [title: string, category: string, summary: string];
+
+const APP: string = process.cwd();
 const [verb, ...args] = process.argv.slice(2);
 
-function fail(message) {
+function fail(message: string): never {
   console.error(message);
   process.exit(1);
 }
 
-function read(rel) {
+function read(rel: string): string {
   return fs.readFileSync(path.join(APP, rel), 'utf8');
 }
 
-function write(rel, content) {
+function write(rel: string, content: string): void {
   const file = path.join(APP, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
@@ -164,8 +233,8 @@ export const withWebshipTestSite = (config: Config): Config => ({
 
 const PLACEHOLDER = /^(YOUR_[A-Z_]*HERE|)$/;
 
-function config(url) {
-  if (!/^https?:\/\/[^/]+$/.test(String(url || ''))) fail('config needs the address of the site, with no path: config https://<name>.ddev.site');
+function config(url: string | undefined): void {
+  if (!url || !/^https?:\/\/[^/]+$/.test(url)) fail('config needs the address of the site, with no path: config https://<name>.ddev.site');
 
   // .env: the address of the site (links, live preview, CORS), and a secret of
   // its own for the preview and the scheduled jobs where the installer left
@@ -173,10 +242,10 @@ function config(url) {
   const envFile = path.join(APP, '.env');
   if (!fs.existsSync(envFile)) fail('The app has no .env: run create-payload-app first.');
   let env = fs.readFileSync(envFile, 'utf8');
-  const set = (name, value, onlyIfPlaceholder = false) => {
+  const set = (name: string, value: string, onlyIfPlaceholder = false): void => {
     const line = new RegExp(`^${name}=(.*)$`, 'm');
     const found = env.match(line);
-    if (found && onlyIfPlaceholder && !PLACEHOLDER.test(found[1].trim())) return;
+    if (found && onlyIfPlaceholder && !PLACEHOLDER.test((found[1] ?? '').trim())) return;
     if (found) env = env.replace(line, `${name}=${value}`);
     else env += `${env.endsWith('\n') ? '' : '\n'}${name}=${value}\n`;
   };
@@ -214,48 +283,48 @@ function config(url) {
 // The app's Local API (payload run)
 // ---------------------------------------------------------------------------
 
-async function app() {
+async function app(): Promise<Payload> {
   if (!process.env.PAYLOAD_SECRET && !fs.existsSync(path.join(APP, '.env'))) fail('Run this in the folder of the app.');
   const { getPayload } = await import('payload');
   const config = (await import('@payload-config')).default;
-  const payload = await getPayload({ config });
+  const payload = await getPayload({ config }) as Payload;
   // Outside the server the front end's cache cannot be told about a change (the
   // template's hooks would fail): every write of these verbs says so, as the
   // template's own seed does for its posts. The production build that follows
   // renders the pages afresh.
-  for (const method of ['create', 'update', 'updateGlobal', 'delete']) {
-    const original = payload[method].bind(payload);
+  for (const method of ['create', 'update', 'updateGlobal', 'delete'] as const) {
+    const original: Write = payload[method].bind(payload);
     payload[method] = (options) => original({ ...options, context: { disableRevalidate: true, ...(options && options.context) } });
   }
   return payload;
 }
 
-async function standardInput() {
+async function standardInput(): Promise<string> {
   if (process.stdin.isTTY) return '';
   let text = '';
-  for await (const chunk of process.stdin) text += chunk;
+  for await (const chunk of process.stdin) text += String(chunk);
   return text.trim();
 }
 
-async function accountsPayload() {
+async function accountsPayload(): Promise<AccountsInput> {
   const raw = (await standardInput()) || process.env.PAYLOAD_SITE_ACCOUNTS || '';
   if (!raw) return { owner: null, accounts: [] };
   try {
-    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8')) as AccountsInput;
   } catch {
     fail('The accounts on the standard input are not base64 of a JSON object.');
   }
 }
 
-const ACCOUNTS = () => 'users';
+const ACCOUNTS = (): string => 'users';
 
-async function findAccount(payload, email) {
-  const found = await payload.find({ collection: ACCOUNTS(), where: { email: { equals: String(email).toLowerCase() } }, limit: 1, depth: 0, overrideAccess: true });
+async function findAccount(payload: Payload, email: string): Promise<AccountDoc | null> {
+  const found = await payload.find<AccountDoc>({ collection: ACCOUNTS(), where: { email: { equals: String(email).toLowerCase() } }, limit: 1, depth: 0, overrideAccess: true });
   return found.docs[0] || null;
 }
 
 /** Make an account, or give an account that is there its name, password and roles back, and unlock it. */
-async function putAccount(payload, account) {
+async function putAccount(payload: Payload, account: Account): Promise<string> {
   const data = { name: account.name, email: account.email, password: account.password, roles: account.roles || [] };
   const existing = await findAccount(payload, account.email);
   if (existing) {
@@ -267,7 +336,7 @@ async function putAccount(payload, account) {
   return `made ${account.email} (${data.roles.join(', ') || 'no role'})`;
 }
 
-async function accounts(payload, action) {
+async function accounts(payload: Payload, action: string | undefined): Promise<void> {
   const { owner, accounts: list } = await accountsPayload();
   switch (action) {
     case 'add': {
@@ -290,7 +359,7 @@ async function accounts(payload, action) {
       return;
     }
     case 'list': {
-      const found = await payload.find({ collection: ACCOUNTS(), limit: 100, depth: 0, sort: 'email', overrideAccess: true });
+      const found = await payload.find<AccountDoc>({ collection: ACCOUNTS(), limit: 100, depth: 0, sort: 'email', overrideAccess: true });
       for (const doc of found.docs) console.log(`   ${doc.email}  ${doc.name || ''}  ${(doc.roles || []).join(', ') || 'no role'}`);
       if (!found.docs.length) console.log('   (none: the admin asks for its first account)');
       return;
@@ -298,7 +367,7 @@ async function accounts(payload, action) {
     case 'installed': {
       // Says so on its output too: `payload run` ends with 0 whatever a script sets, so the exit status is
       // the one of process.exit (after the database is let go).
-      const found = await payload.find({ collection: ACCOUNTS(), where: { roles: { contains: 'administrator' } }, limit: 1, depth: 0, overrideAccess: true });
+      const found = await payload.find<AccountDoc>({ collection: ACCOUNTS(), where: { roles: { contains: 'administrator' } }, limit: 1, depth: 0, overrideAccess: true });
       console.log(`installed: ${found.docs.length ? 'yes' : 'no'}`);
       await payload.destroy().catch(() => {});
       process.exit(found.docs.length ? 0 : 1);
@@ -309,26 +378,27 @@ async function accounts(payload, action) {
 }
 
 /** The first administrator of the app: the account the seed and the sample content are made as. */
-async function administrator(payload) {
-  const found = await payload.find({ collection: ACCOUNTS(), where: { roles: { contains: 'administrator' } }, sort: 'createdAt', limit: 1, depth: 0, overrideAccess: true });
-  if (!found.docs[0]) fail('The app has no administrator yet: add the accounts first (accounts add).');
-  return found.docs[0];
+async function administrator(payload: Payload): Promise<AccountDoc> {
+  const found = await payload.find<AccountDoc>({ collection: ACCOUNTS(), where: { roles: { contains: 'administrator' } }, sort: 'createdAt', limit: 1, depth: 0, overrideAccess: true });
+  const first = found.docs[0];
+  if (!first) fail('The app has no administrator yet: add the accounts first (accounts add).');
+  return first;
 }
 
 /** The template's own seed, as its dashboard's "Seed your database" runs it. */
-async function seed(payload) {
+async function seed(payload: Payload): Promise<void> {
   const file = path.join(APP, 'src/endpoints/seed/index.ts');
   if (!fs.existsSync(file)) fail('This app has no seed of its own (src/endpoints/seed): the website template has one.');
   const { createLocalReq } = await import('payload');
   const user = await administrator(payload);
   const req = await createLocalReq({ user }, payload);
-  const { seed: templateSeed } = await import(file);
+  const { seed: templateSeed } = await import(file) as TemplateSeed;
   await templateSeed({ payload, req });
   console.log('  the template\'s seed: the home and contact pages, the contact form, 3 posts, 6 categories, 4 images, the header and footer links');
 }
 
 /** A rich-text value of one paragraph per line. */
-function richText(...lines) {
+function richText(...lines: string[]): object {
   return {
     root: {
       type: 'root', format: '', indent: 0, version: 1, direction: 'ltr',
@@ -345,7 +415,7 @@ function richText(...lines) {
  * the posts' list in the admin has two pages of ten and the front end's posts
  * list two pages of twelve. Each is made again when it is there already.
  */
-const SAMPLE_POSTS = [
+const SAMPLE_POSTS: readonly SamplePost[] = [
   ['Morning light over the harbour', 'News', 'A slow walk along the water before the town wakes up.'],
   ['A field guide to city gardens', 'Design', 'Small green corners, and the people who keep them.'],
   ['Notes from a quiet river', 'News', 'What a week beside the water teaches about patience.'],
@@ -359,20 +429,20 @@ const SAMPLE_POSTS = [
   ['The long walk to the lighthouse', 'News', 'Eleven kilometres of coast and one tall white tower.'],
   ['Counting birds on the marsh', 'Software', 'A morning with the volunteers and their notebooks.'],
 ];
-const SAMPLE_DRAFTS = [
+const SAMPLE_DRAFTS: readonly SamplePost[] = [
   ['A draft about the winter fair', 'News', 'Stalls, music and the first snow of the year.'],
   ['A draft about the new library', 'Design', 'Shelves, light and a room for every age.'],
 ];
 
-function slugOf(title) {
+function slugOf(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-async function sample(payload) {
+async function sample(payload: Payload): Promise<void> {
   const user = await administrator(payload);
-  const categories = await payload.find({ collection: 'categories', limit: 100, depth: 0, overrideAccess: true });
-  const category = (title) => (categories.docs.find((c) => c.title === title) || {}).id;
-  const put = async ([title, categoryTitle, summary], status, day) => {
+  const categories = await payload.find<CategoryDoc>({ collection: 'categories', limit: 100, depth: 0, overrideAccess: true });
+  const category = (title: string): Doc['id'] | undefined => categories.docs.find((c) => c.title === title)?.id;
+  const put = async ([title, categoryTitle, summary]: SamplePost, status: 'published' | 'draft', day: number): Promise<void> => {
     const slug = slugOf(title);
     const data = {
       title,
@@ -385,7 +455,8 @@ async function sample(payload) {
       _status: status,
     };
     const existing = await payload.find({ collection: 'posts', where: { slug: { equals: slug } }, limit: 1, depth: 0, draft: true, overrideAccess: true });
-    if (existing.docs[0]) await payload.delete({ collection: 'posts', id: existing.docs[0].id, overrideAccess: true });
+    const old = existing.docs[0];
+    if (old) await payload.delete({ collection: 'posts', id: old.id, overrideAccess: true });
     await payload.create({ collection: 'posts', data, depth: 0, draft: status === 'draft', overrideAccess: true, user });
   };
   let day = 1;
@@ -398,7 +469,7 @@ async function sample(payload) {
 
 if (verb === 'config') {
   config(args[0]);
-} else if (['accounts', 'seed', 'sample'].includes(verb)) {
+} else if (verb === 'accounts' || verb === 'seed' || verb === 'sample') {
   const payload = await app();
   try {
     if (verb === 'accounts') await accounts(payload, args[0]);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 
@@ -47,12 +48,17 @@ test('every shell script parses', () => {
   }
 });
 
-test('the site script is a module the app\'s Node.js can run, with every verb the functions call', () => {
-  const src = read('scripts/payload-site.mjs');
-  for (const verb of ['config', 'accounts', 'seed', 'sample']) assert.match(src, new RegExp(`'${verb}'`), `payload-site.mjs has the verb ${verb}`);
-  for (const verb of ['installed', 'add', 'cancel', 'list']) assert.match(src, new RegExp(`case '${verb}':`), `payload-site.mjs has accounts ${verb}`);
-  const r = spawnSync(process.execPath, ['--check', path.join(PKG, 'scripts', 'payload-site.mjs')], { encoding: 'utf8' });
-  assert.strictEqual(r.status, 0, r.stderr);
+test('the site script is TypeScript the app\'s Node.js runs as it is, with every verb the functions call', () => {
+  const src = read('scripts/payload-site.mts');
+  for (const verb of ['config', 'accounts', 'seed', 'sample']) assert.match(src, new RegExp(`'${verb}'`), `payload-site.mts has the verb ${verb}`);
+  for (const verb of ['installed', 'add', 'cancel', 'list']) assert.match(src, new RegExp(`case '${verb}':`), `payload-site.mts has accounts ${verb}`);
+  // TypeScript Node.js runs as it is: without a verb it answers its usage (and touches nothing).
+  const r = spawnSync(process.execPath, [path.join(PKG, 'scripts', 'payload-site.mts')], { encoding: 'utf8', cwd: os.tmpdir() });
+  assert.strictEqual(r.status, 1, r.stderr);
+  assert.match(r.stderr, /^Verbs: config <url> \| accounts add\|cancel\|list\|installed \| seed \| sample/);
+  // Erasable syntax only, and type-checked by the lint.
+  assert.doesNotMatch(src, /^\s*(enum|namespace)\s|^import .* = require\(|\/\/ @ts-nocheck|: any\b/m);
+  assert.match(JSON.parse(read('package.json')).scripts.lint, /tsconfig\.scripts\.json/, 'npm run lint type-checks it');
   assert.match(src, /No cloud account, no licence key, no paid service/, 'the site script says it uses no service of the vendor');
   assert.match(src, /telemetry: false/, 'telemetry off in the app');
   assert.match(src, /name: 'roles'/, 'the accounts get a roles field');
