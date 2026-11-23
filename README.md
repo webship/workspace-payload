@@ -274,11 +274,11 @@ npm test        # the manifest, the commands, the AI items, the functions agains
 ```
 
 The plugin is TypeScript throughout. `scripts/payload-site.mts` is not compiled: the builder puts it into the
-folder of the app as `webship-site.mts`, Node.js runs its `config` verb as it is (type stripping, from
-Node.js 22.18, the lowest the Workspace accepts), and `payload run` loads it for the other verbs with the
+folder of the app as `webship-site.mts`, Node.js runs its `config` verb as it is (type stripping, on
+Node.js 24, the lowest the Workspace accepts), and `payload run` loads it for the other verbs with the
 app's own tsx. It is an ES module with erasable syntax only, and an `.mts` so the app's own type check
 (`**/*.ts`) leaves it alone. `types/payload-site-modules.d.ts` says what it uses of the app's `payload`.
 
-CI runs the same on Node.js 22 and 26, parses every shell script, and runs the plugin's
+CI runs the same on Node.js 24 and 26, parses every shell script, and runs the plugin's
 `features/payload.feature` against a dashboard with this plugin installed
 (`webship/workspace/.github/workflows/plugin-browser-suite.yml`).
