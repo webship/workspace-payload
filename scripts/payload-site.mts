@@ -31,7 +31,7 @@
 // writes. No cloud account, no licence key, no paid service.
 
 // TypeScript, with erasable syntax only, so nothing is built: Node.js runs `config` as it is (type
-// stripping, from Node.js 22.18), and `payload run` loads the file with the app's own tsx. It is an
+// stripping, Node.js 24 or later), and `payload run` loads the file with the app's own tsx. It is an
 // .mts so the app's own type check (its tsconfig takes **/*.ts) leaves it alone. `npm run lint` of the
 // plugin type-checks it (tsconfig.scripts.json, with types/payload-site-modules.d.ts for what it uses
 // of the app's packages).
